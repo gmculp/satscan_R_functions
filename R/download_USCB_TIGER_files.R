@@ -6,7 +6,8 @@ library(data.table)
 
 data.table::setDTthreads(1)
 
-download_USCB_TIGER_files <- function(FIPS.dt,export.path){
+
+download_USCB_TIGER_files <- function(FIPS.dt,USCB_TIGER.path){
 
 	###pad state and county codes with leading zeros###
 	FIPS.dt[,state := sprintf("%02d", as.numeric(state))]
@@ -16,14 +17,14 @@ download_USCB_TIGER_files <- function(FIPS.dt,export.path){
 
 	old.wd <- getwd()
 
-	setwd(export.path)
+	setwd(USCB_TIGER.path)
 	
 	###############################
 	###download faces shapefiles###
 	###############################
 
 	main.URL <- file.path(base.URL,"FACES")
-	main.path <- file.path(export.path,"FACES")
+	main.path <- file.path(USCB_TIGER.path,"FACES")
 
 	for (j in 1:nrow(FIPS.dt)){
 
@@ -40,7 +41,7 @@ download_USCB_TIGER_files <- function(FIPS.dt,export.path){
 		unzip(file, exdir = file.path(main.path,tools::file_path_sans_ext(file)))
 		
 		###removed compressed file###
-		file.remove(file.path(export.path,file))
+		file.remove(file.path(USCB_TIGER.path,file))
 		
 	}
 	
@@ -54,7 +55,7 @@ download_USCB_TIGER_files <- function(FIPS.dt,export.path){
 	###############################
 
 	main.URL <- file.path(base.URL,"EDGES")
-	main.path <- file.path(export.path,"EDGES")
+	main.path <- file.path(USCB_TIGER.path,"EDGES")
 
 	for (j in 1:nrow(FIPS.dt)){
 
@@ -71,7 +72,7 @@ download_USCB_TIGER_files <- function(FIPS.dt,export.path){
 		unzip(file, exdir = file.path(main.path,tools::file_path_sans_ext(file)))
 		
 		###removed compressed file###
-		file.remove(file.path(export.path,file))
+		file.remove(file.path(USCB_TIGER.path,file))
 		
 	}
 	
@@ -85,7 +86,7 @@ download_USCB_TIGER_files <- function(FIPS.dt,export.path){
 	################################################################
 
 	main.URL <- file.path(base.URL,"FACESAL")
-	main.path <- file.path(export.path,"FACESAL")
+	main.path <- file.path(USCB_TIGER.path,"FACESAL")
 
 	for (j in unique(FIPS.dt$state)){
 
@@ -102,7 +103,7 @@ download_USCB_TIGER_files <- function(FIPS.dt,export.path){
 		unzip(file, exdir = file.path(main.path,tools::file_path_sans_ext(file)))
 		
 		###removed compressed file###
-		file.remove(file.path(export.path,file))
+		file.remove(file.path(USCB_TIGER.path,file))
 		
 	}
 	
@@ -115,7 +116,7 @@ download_USCB_TIGER_files <- function(FIPS.dt,export.path){
 	##############################################
 
 	main.URL <- file.path(base.URL,"AREALM")
-	main.path <- file.path(export.path,"AREALM")
+	main.path <- file.path(USCB_TIGER.path,"AREALM")
 
 	for (j in unique(FIPS.dt$state)){
 
@@ -132,7 +133,7 @@ download_USCB_TIGER_files <- function(FIPS.dt,export.path){
 		unzip(file, exdir = file.path(main.path,tools::file_path_sans_ext(file)))
 		
 		###removed compressed file###
-		file.remove(file.path(export.path,file))
+		file.remove(file.path(USCB_TIGER.path,file))
 		
 	}
 	
@@ -144,3 +145,6 @@ download_USCB_TIGER_files <- function(FIPS.dt,export.path){
 
 	cat("USCB TIGER file download complete.\n")
 }
+
+
+
