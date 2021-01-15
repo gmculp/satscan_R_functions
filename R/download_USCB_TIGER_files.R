@@ -7,11 +7,15 @@ library(data.table)
 data.table::setDTthreads(1)
 
 
-download_USCB_TIGER_files <- function(FIPS.dt,USCB_TIGER.path){
+download_USCB_TIGER_files <- function(in.dt,USCB_TIGER.path){
+	
+	FIPS.dt <- copy(as.data.table(in.dt))
 
 	###pad state and county codes with leading zeros###
 	FIPS.dt[,state := sprintf("%02d", as.numeric(state))]
 	FIPS.dt[,county := sprintf("%03d", as.numeric(county))]
+	
+	FIPS.dt <- unique(FIPS.dt[,c("state","county"),with=FALSE])
 
 	base.URL <- "https://www2.census.gov/geo/tiger/TIGER2019"
 
