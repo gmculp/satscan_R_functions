@@ -7,9 +7,9 @@ library(data.table)
 data.table::setDTthreads(1)
 
 
-download_USCB_TIGER_files <- function(in.dt,USCB_TIGER.path){
+download_USCB_TIGER_files <- function(FIPS_dt,USCB_TIGER.path){
 	
-	FIPS.dt <- copy(as.data.table(in.dt))
+	FIPS.dt <- copy(as.data.table(FIPS_dt))
 
 	###pad state and county codes with leading zeros###
 	FIPS.dt[,state := sprintf("%02d", as.numeric(state))]
