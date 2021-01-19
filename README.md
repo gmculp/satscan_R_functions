@@ -22,7 +22,9 @@ Required packages that must be installed to run this code:
 * ```igraph```: for collapsing directional multipart polylines in edges files into single part polylines
 
           
-Here is a code sample for generating a network file for tracts within NYC...
+          
+          
+Here is a code sample for generating a network file for tracts within NYC:
 ```
 source("R/download_USCB_TIGER_files.R")
 source("R/generate_USCB_tract_network_file.R")
