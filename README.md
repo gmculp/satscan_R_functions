@@ -8,12 +8,19 @@ At this point in time, the following functions are available:
 * ```generate_USCB_tract_network_file.R```: Function to generate census tract relationship file in CSV format. Includes optional logical arguments to enable bridge connectivity, omit connectivity with parks and other open spaces and omit connectivity with unpopulated tracts. In addition, there is the option to input a data frame of to and from addresses.
 
 Required packages that must be installed to run this code:
-*```data.table```: for handling large data.frames more efficiently
-*```foreign```: for reading in dbf files
-*```sf```: for reading in shapefiles
-*```censusapi```: for reading in population data
-*```censusxy```: for geocoding addresses to census block level
-*```igraph```: for collapsing directional multipart polylines in edges files into single part polylines
+
+* ```data.table```: for handling large data.frames more efficiently
+
+* ```foreign```: for reading in dbf files
+
+* ```sf```: for reading in shapefiles
+
+* ```censusapi```: for reading in population data
+
+* ```censusxy```: for geocoding addresses to census block level
+
+* ```igraph```: for collapsing directional multipart polylines in edges files into single part polylines
+
           
 Here is a code sample for generating a network file for tracts within NYC...
 ```
