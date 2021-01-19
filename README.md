@@ -2,8 +2,10 @@
 This repository contains functions for generating SaTScan related items.  It is a work in progress and will be updated reglarly. 
 
 At this point in time, the following functions are available:
- Markup : * download_USCB_TIGER_files.R: Function to download necessary files from USCB TIGER website
-          * generate_USCB_tract_network_file.R: Function to generate census tract relationship file in CSV format. Includes options to enable bridge connectivity, omit connectivity with parks and other open spaces, omit connectivity with unpopulated tracts and add a data frame of to and from addresses.
+
+* download_USCB_TIGER_files.R: Function to download necessary files from USCB TIGER website
+
+* generate_USCB_tract_network_file.R: Function to generate census tract relationship file in CSV format. Includes options to enable bridge connectivity, omit connectivity with parks and other open spaces, omit connectivity with unpopulated tracts and add a data frame of to and from addresses.
           
 Here is a code sample for generating a network file for tracts within NYC...
 ```
