@@ -27,7 +27,7 @@ Required packages that must be installed to run this code:
           
           
           
-Here is a code sample for generating a network file for tracts within NYC:
+Here is a code sample for generating a network file for tracts and ZIP code tabulation areas within NYC:
 ```
 source("R/download_USCB_TIGER_files.R")
 source("R/generate_USCB_tract_network_file.R")
