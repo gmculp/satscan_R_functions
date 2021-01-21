@@ -7,6 +7,9 @@ At this point in time, the following functions are available:
 
 * ```generate_USCB_tract_network_file.R```: Function to generate census tract relationship file in CSV format. Includes optional logical arguments to enable bridge connectivity, omit connectivity with parks and other open spaces and omit connectivity with unpopulated tracts. In addition, there is the option to input a data frame of to and from addresses.
 
+* ```generate_USCB_ZCTA_network_file.R```: Function to generate ZIP code tabulation area relationship file in CSV format. Includes optional logical arguments to enable bridge connectivity, omit connectivity with parks and other open spaces and omit connectivity with unpopulated tracts. In addition, there is the option to input a data frame of to and from addresses.
+
+
 Required packages that must be installed to run this code:
 
 * ```data.table```: for handling large data.frames more efficiently
@@ -45,7 +48,9 @@ ADDR_dt <- data.table(ADDR=c("1 Bay St","4 South Street"), CITY = c("Staten Isla
 download_USCB_TIGER_files(FIPS.dt,USCB_TIGER.path)
 
 ###generate census tract relationship file###
-all_pairs.dt <- generate_USCB_tract_network_file(FIPS_dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, ADDR_dt)
+tract_pairs.dt <- generate_USCB_tract_network_file(FIPS_dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, ADDR_dt)
 
+###generate ZIP code tabulation area relationship file###
+ZCTA_pairs.dt <- generate_USCB_tract_network_file(FIPS_dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, ADDR_dt)
 
 
