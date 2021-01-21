@@ -455,7 +455,11 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	
 	unq.ct <- unique(substr(faces.dt[LWFLAG != "P"]$USCB_block_10,1,11))
 
-	island.dt <- data.table(USCB_tract_10.1 = unq.ct[!(unq.ct %in% unique(c(all_pairs.dt$USCB_tract_10.1,all_pairs.dt$USCB_tract_10.2)))], USCB_tract_10.2 = NA, type = "self")
+	island.dt <- data.table(USCB_tract_10.1 = unq.ct[!(unq.ct %in% unique(c(all_pairs.dt$USCB_tract_10.1,all_pairs.dt$USCB_tract_10.2)))], USCB_tract_10.2 = NA)
+	
+	island.dt <- merge(island.dt, unique(omit.dt[,c("USCB_tract_10","type"),with=FALSE]), by.x="USCB_tract_10.1", by.y="USCB_tract_10", all.x=TRUE)
+	
+	island.dt[,type := trimws(paste("self",ifelse(is.na(type),"",type)))]
 	
 	all_pairs.dt <- rbindlist(list(all_pairs.dt,island.dt), use.names=TRUE, fill=TRUE)
 
