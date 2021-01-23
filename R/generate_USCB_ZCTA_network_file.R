@@ -10,6 +10,9 @@ library(sf)
 library(censusapi)
 library(igraph)
 library(censusxy)
+library(sp)
+library(rgdal)
+library(rgeos)
 
 data.table::setDTthreads(1)
 
@@ -23,6 +26,8 @@ generate_USCB_ZCTA_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park_
 	FIPS.dt[,county := sprintf("%03d", as.numeric(county))]
 	
 	FIPS.dt <- unique(FIPS.dt[,c("state","county"),with=FALSE])
+	
+	
 	
 	old.wd <- getwd()
 
@@ -64,12 +69,71 @@ generate_USCB_ZCTA_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park_
 	}), use.names=TRUE, fill=TRUE)
 	
 	faces.dt[,USCB_block_10 := paste0(STATEFP10,COUNTYFP10,TRACTCE10,BLOCKCE10)]
-	faces.dt[,ZCTA5CE10 := sprintf("%05d", as.numeric(ZCTA5CE10))]
+	
+	suppressWarnings(faces.dt[,ZCTA5CE10 := ifelse(is.na(as.numeric(ZCTA5CE10)),"99999",sprintf("%05d", as.numeric(ZCTA5CE10)))])
+	
+	
+	
+	##########################################
+	###additional step to deal with NA ZCTA###
+	##########################################
+	
+	
+	faces.sf <- st_sf(rbindlist(lapply(face.files,function(j){
+
+		###read in shapefile###
+		temp.sf <- sf::st_read(file.path("FACES",j), j, stringsAsFactors = F, quiet=T)
+		
+		###convert to data.table###
+		return(as.data.table(temp.sf)[LWFLAG !="P"])
+
+	}), use.names=TRUE, fill=TRUE))
+	
+	faces.sf$USCB_block_10 <- paste0(faces.sf$STATEFP10,faces.sf$COUNTYFP10,faces.sf$TRACTCE10,faces.sf$BLOCKCE10)
+	
+	suppressWarnings(faces.sf$ZCTA5CE10 <- ifelse(is.na(as.numeric(faces.sf$ZCTA5CE10)),"99999",sprintf("%05d", as.numeric(faces.sf$ZCTA5CE10))))
+	
+	###create single part polygons from NA ZCTA and then assign arbitrary ID###
+	faces.sf1 <- st_sf(as.data.table(faces.sf)[ZCTA5CE10=="99999",.(geometry = st_union(geometry)),by=list(ZCTA5CE10)])
+	
+	faces.sf1 <- st_union(faces.sf1[1:nrow(faces.sf1),], by_feature = T)
+	
+	suppressWarnings(faces.sf_99999 <- st_cast(faces.sf1,"POLYGON"))
+	
+	faces.sf_99999$ZCTA5CE10 <- paste0("99999.",1:nrow(faces.sf_99999))
+	
+	###perform spatial join on multipart polygon and census block centroids###
+	cb.sf <- st_sf(as.data.table(faces.sf)[ZCTA5CE10=="99999",.(geometry = st_union(geometry)),by=list(USCB_block_10)])
+	
+	cb.sf <- st_union(cb.sf[1:nrow(cb.sf),], by_feature = T)
+	
+	###use Surf Point to get contained centroids###
+	cb.sp <- as(cb.sf, 'Spatial')
+	cb.sp.pt <- gPointOnSurface(cb.sp, byid=TRUE, id = cb.sp$USCB_block_10)
+	cb.sp.pt$USCB_block_10 <- row.names(cb.sp.pt)
+	cb.sf.pt <- st_as_sf(cb.sp.pt)
+	rm(cb.sp,cb.sp.pt)
+	cb.sf.pt <- st_set_crs(cb.sf.pt, st_crs(cb.sf))
+	
+	###perform spatial join on census tract###
+	suppressMessages(sf.sj <- st_intersects(cb.sf.pt, faces.sf_99999))
+
+	int.zone <- lapply(1:length(sf.sj),function(i){
+		ifelse(length(sf.sj[[i]])==0,NA,sf.sj[[i]][[1]])
+	})
+
+	cb.sf.pt$ZCTA5CE10_sj <- faces.sf_99999$ZCTA5CE10[unlist(int.zone)]
+	
+	cb.pt.dt <- as.data.table(st_drop_geometry(cb.sf.pt))
+	faces.dt <- merge(faces.dt,cb.pt.dt,by="USCB_block_10",all.x=TRUE)
+	faces.dt[,ZCTA5CE10 := ifelse(is.na(ZCTA5CE10_sj),ZCTA5CE10,ZCTA5CE10_sj)]
+	
+	###future work: use state plane coordinate systems based on county FIPS code###
 	
 	###generate census block to ZCTA look-up table###
-	#cb2zcta.dt <- faces.dt[,.(tot=.N),by=list(USCB_block_10,ZCTA5CE10)]
-	#cb2zcta.dt[,cnt := .N, by=USCB_block_10]
 	cb2zcta.dt <- unique(faces.dt[,c('USCB_block_10','ZCTA5CE10'),with=FALSE])
+	
+	rm(cb.sf.pt,faces.sf_99999,faces.sf,faces.sf1)
 	
 	###########################################
 	###pull 2010 block-level population data###
@@ -358,7 +422,92 @@ generate_USCB_ZCTA_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park_
 	bridges.dt_agg[,edge_len := NULL]
 	bridges.dt_agg <- merge(bridges.dt_agg, bridges.nodes.dt_ends, by="b_grp", all.x=TRUE)
 	bridges.dt_agg <- bridges.dt_agg[bridges.dt_agg[, .I[which.min(bridge_length)], by=list(ZCTA5CE10.1, ZCTA5CE10.2)]$V1]
+	
+	setorder(bridges.dt_agg, ZCTA5CE10.1, ZCTA5CE10.2)
+		
+	###code to deal with bridge connections where one or more ZCTA are NA###
+	cont <- ifelse(nrow(bridges.dt_agg[grepl("99999",ZCTA5CE10.1) | grepl("99999",ZCTA5CE10.2)]) > 0, TRUE, FALSE)
+	
+	while(cont){
+		xx <- copy(bridges.dt_agg)
+		#xx[,u_id := .I]
+		#xx[grepl("99999",ZCTA5CE10.1) | grepl("99999",ZCTA5CE10.2)]
+		
+		###merge: x1=y1###
+		
+		yy <- neighbors.dt[grepl("99999",ZCTA5CE10.1),c("ZCTA5CE10.1","ZCTA5CE10.2"),with=FALSE]
+		setnames(yy,c("ZCTA5CE10.1","ZCTA5CE10.2"),c("ZCTA5CE10.1","ZCTA5CE10.1_new"))
+		
+		xx <- merge(xx,yy,by="ZCTA5CE10.1",all.x=TRUE)
+	
+		xx[,ZCTA5CE10.1 := ifelse(is.na(ZCTA5CE10.1_new),ZCTA5CE10.1,ZCTA5CE10.1_new)]
+		xx[,ZCTA5CE10.1_new := NULL]
+		
+		xx <- unique(xx)
+		
+		###merge: x2=y1###
+		
+		yy <- neighbors.dt[grepl("99999",ZCTA5CE10.1),c("ZCTA5CE10.1","ZCTA5CE10.2"),with=FALSE]
+		setnames(yy,c("ZCTA5CE10.1","ZCTA5CE10.2"),c("ZCTA5CE10.2","ZCTA5CE10.2_new"))
+		
+		xx <- merge(xx,yy,by="ZCTA5CE10.2",all.x=TRUE)
+		
+		xx[,ZCTA5CE10.2 := ifelse(is.na(ZCTA5CE10.2_new),ZCTA5CE10.2,ZCTA5CE10.2_new)]
+		xx[,ZCTA5CE10.2_new := NULL]
+		
+		xx <- unique(xx)
+		
+		###merge: x2=y2###
+		
+		yy <- neighbors.dt[grepl("99999",ZCTA5CE10.2),c("ZCTA5CE10.1","ZCTA5CE10.2"),with=FALSE]
+		setnames(yy,c("ZCTA5CE10.1","ZCTA5CE10.2"),c("ZCTA5CE10.2_new","ZCTA5CE10.2"))
+		
+		xx <- merge(xx,yy,by="ZCTA5CE10.2",all.x=TRUE)
+		
+		xx[,ZCTA5CE10.2 := ifelse(is.na(ZCTA5CE10.2_new),ZCTA5CE10.2,ZCTA5CE10.2_new)]
+		xx[,ZCTA5CE10.2_new := NULL]
+		
+		xx <- unique(xx)
+		
+		###merge: x1=y2###
+		
+		yy <- neighbors.dt[grepl("99999",ZCTA5CE10.2),c("ZCTA5CE10.1","ZCTA5CE10.2"),with=FALSE]
+		setnames(yy,c("ZCTA5CE10.1","ZCTA5CE10.2"),c("ZCTA5CE10.1_new","ZCTA5CE10.1"))
+		
+		xx <- merge(xx,yy,by="ZCTA5CE10.1",all.x=TRUE)
+		
+		xx[,ZCTA5CE10.1 := ifelse(is.na(ZCTA5CE10.1_new),ZCTA5CE10.1,ZCTA5CE10.1_new)]
+		xx[,ZCTA5CE10.1_new := NULL]
+		
+		xx <- unique(xx)
+		setnames(xx,c("ZCTA5CE10.1","ZCTA5CE10.2"),c("ZCTA5CE10.x","ZCTA5CE10.y"))
+		
+		xx[,ZCTA5CE10.1 := ifelse(as.numeric(ZCTA5CE10.x) > as.numeric(ZCTA5CE10.y),ZCTA5CE10.y,ZCTA5CE10.x)]
+		
+		xx[,ZCTA5CE10.2 := ifelse(as.numeric(ZCTA5CE10.x) > as.numeric(ZCTA5CE10.y),ZCTA5CE10.x,ZCTA5CE10.y)]
+		
+		xx <- xx[,names(bridges.dt_agg),with=FALSE]
+		
+		xx <- xx[xx[, .I[which.min(bridge_length)], by=list(ZCTA5CE10.1, ZCTA5CE10.2)]$V1]
+		
+		setorder(xx, ZCTA5CE10.1, ZCTA5CE10.2)
+		
+		
+		if(nrow(xx[grepl("99999",ZCTA5CE10.1) | grepl("99999",ZCTA5CE10.2)]) == 0){
+			cont <- FALSE
+		} else if(isTRUE(all.equal(xx, bridges.dt_agg, ignore.row.order = TRUE))){
+			cont <- FALSE
+		} else{
+			cont <- TRUE
+		}
+	
+		bridges.dt_agg <- copy(xx)
+		
+		rm(xx)
+	}
 
+	bridges.dt_agg <- bridges.dt_agg[(!(grepl("^99999",ZCTA5CE10.1))) & (!(grepl("^99999",ZCTA5CE10.2)))]
+	
 
 	###remove bridge relationships that are already in neighbor relationships table###
 	keep.cols <- names(bridges.dt_agg)
@@ -448,7 +597,17 @@ generate_USCB_ZCTA_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park_
 		}
 	}
 	
+	
+	#
+	##
+	###
+	##
+	#
+	
+	
+	
 	if(isTRUE(use.bridges)){
+	
 		all_pairs.dt <- rbindlist(list(bridges.dt_agg[,c("ZCTA5CE10.1","ZCTA5CE10.2","type"),with=FALSE],all_pairs.dt), use.names=TRUE, fill=TRUE) 
 		
 		###retain bridge connections###
@@ -466,7 +625,6 @@ generate_USCB_ZCTA_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park_
 		all_pairs.dt <- all_pairs.dt[!(ZCTA5CE10.1 %in% omit.ct) & !(ZCTA5CE10.2 %in% omit.ct)]
 	}
 
-	
 
 	#########################################
 	###add rows for ZCTA without neighbors###
@@ -485,6 +643,8 @@ generate_USCB_ZCTA_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park_
 	keep.ZCTA5CE10 <- suppressWarnings(unique(cb2zcta.dt[(substr(USCB_block_10,1,5) %in% paste0(FIPS.dt$state,FIPS.dt$county)) & (!(is.na(as.numeric(ZCTA5CE10))))]$ZCTA5CE10))
 
 	all_pairs.dt <- all_pairs.dt[((ZCTA5CE10.1 %in% keep.ZCTA5CE10) & (ZCTA5CE10.2 %in% keep.ZCTA5CE10)) | ((ZCTA5CE10.1 %in% keep.ZCTA5CE10) & (is.na(as.numeric(ZCTA5CE10.2))))]
+	
+	all_pairs.dt <- all_pairs.dt[(!(grepl("^99999",ZCTA5CE10.1))) & (!(grepl("^99999",ZCTA5CE10.2)))]
 	
 	invisible(gc())
 	
