@@ -11,7 +11,6 @@ library(censusapi)
 library(igraph)
 library(censusxy)
 library(sp)
-library(rgdal)
 library(rgeos)
 
 data.table::setDTthreads(1)
