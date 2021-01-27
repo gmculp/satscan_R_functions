@@ -24,6 +24,10 @@ Required packages that must be installed to run this code:
 
 * ```igraph```: for collapsing directional multipart polylines in edges files into single part polylines
 
+* ```rgeos```: for generating contained centroids
+
+* ```sp```: required by ```rgeos```
+
           
           
           
