@@ -407,7 +407,7 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 			###retain address connections###
 			omit.dt <- omit.dt[!(USCB_tract_10 %in% unique(c(gc.dt$USCB_tract_10.1,gc.dt$USCB_tract_10.2)))]
 			
-			gc.dt[,type := "address pair"]
+			gc.dt[,type := "manual"]
 			
 		} 
 	} else{
