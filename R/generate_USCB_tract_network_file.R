@@ -355,8 +355,8 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	###tracts connected by two addresses###
 	#######################################
 
-	
-	if(!is.null(ADDR_dt) & ("data.frame" %in% class(ADDR_dt))) {
+	if(!is.null(ADDR_dt)) {
+	if("data.frame" %in% class(ADDR_dt)) {
 	
 	if(all(c("ADDR","CITY","STATE","ZIP","group_ID") %in% names(ADDR_dt)) & (nrow(ADDR_dt) > 1)) {
 		
@@ -414,6 +414,7 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 			warning("Your address table is missing fields.  Please check your address table.\n")
 		}
 	}
+	}	
 	
 	###merge to relationship tables###
 	
