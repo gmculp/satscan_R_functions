@@ -579,7 +579,7 @@ generate_USCB_ZCTA_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park_
 			###retain address connections###
 			omit.dt <- omit.dt[!(ZCTA5CE10 %in% unique(c(gc.dt$ZCTA5CE10.1,gc.dt$ZCTA5CE10.2)))]
 			
-			gc.dt[,type := "address pair"]
+			gc.dt[,type := "manual"]
 			
 		} 
 	} else{
