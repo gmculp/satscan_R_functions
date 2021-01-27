@@ -420,12 +420,13 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	
 	all_pairs.dt <- neighbors.dt[,c("USCB_tract_10.1","USCB_tract_10.2","type"),with=FALSE]
 	
-	if(exists("gc.dt") & ("data.table" %in% class(gc.dt))){
+	if(exists("gc.dt")){
+	if("data.table" %in% class(gc.dt)){
 		if(all(c("group_ID","USCB_tract_10.1","USCB_tract_10.2","type" ) %in% names(gc.dt)) & (nrow(gc.dt) > 0)) {
 			all_pairs.dt <- rbindlist(list(gc.dt[,c("USCB_tract_10.1","USCB_tract_10.2","type"),with=FALSE],all_pairs.dt), use.names=TRUE, fill=TRUE) 
 		}
 	}
-	
+	}
 	
 	
 	
