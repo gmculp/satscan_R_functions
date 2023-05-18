@@ -22,7 +22,7 @@ d_f <- function(this.URL,main.path,USCB_TIGER.path) {
 
 download_USCB_TIGER_files <- function(FIPS_dt,USCB_TIGER.path,geo.year="2010"){
 
-	if(geo.year=="2010") {
+	if(as.character(geo.year)=="2010") {
 		f_year <- "2019"
 	} else {
 		f_year <- "2022"
