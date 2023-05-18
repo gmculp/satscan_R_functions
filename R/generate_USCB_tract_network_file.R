@@ -13,8 +13,15 @@ library(censusxy)
 
 data.table::setDTthreads(1)
 
+f_year <- "2020"
 
-generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, ADDR_dt=NULL){
+generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, geo.year="2010", ADDR_dt=NULL){
+
+	if(as.character(geo.year)=="2010") {
+		f_year <- "2019"
+	} else {
+		f_year <- "2022"
+	}
 	
 	FIPS.dt <- copy(as.data.table(FIPS_dt))
 
@@ -28,15 +35,22 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 
 	setwd(USCB_TIGER.path)
 	
+	
 	#######################################################################
 	###consolidate county-level edge shapefiles into a single data.table###
 	#######################################################################
 	
-	edge.files <- paste0("tl_2019_",FIPS.dt$state,FIPS.dt$county,"_edges")
+	edge.files <- paste0("tl_",f_year,"_",FIPS.dt$state,FIPS.dt$county,"_edges")
+	
+	###check if files are where they should be###
+	ff <- list.files(file.path(USCB_TIGER.path,"EDGES"))
+	
+	if(length(edge.files[!edge.files %in% ff]) > 0){
+		stop("\nThe following files are missing:\n",paste(edge.files[!edge.files %in% ff],collapse="\n"))
+	}
 	
 	edges.dt <- rbindlist(lapply(edge.files,function(j){
 	
-
 		###read in shapefile###
 		temp.sf <- sf::st_read(file.path("EDGES",j), j, stringsAsFactors = F, quiet=T)
 		temp.sf$edge_len <- st_length(temp.sf)
@@ -50,7 +64,14 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	###consolidate county-level face shapefiles into a single data.table###
 	#######################################################################
 	
-	face.files <- paste0("tl_2019_",FIPS.dt$state,FIPS.dt$county,"_faces")
+	face.files <- paste0("tl_",f_year,"_",FIPS.dt$state,FIPS.dt$county,"_faces")
+	
+	###check if files are where they should be###
+	ff <- list.files(file.path(USCB_TIGER.path,"FACES"))
+	
+	if(length(face.files[!face.files %in% ff]) > 0){
+		stop("\nThe following files are missing:\n",paste(face.files[!face.files %in% ff],collapse="\n"))
+	}
 	
 	faces.dt <- rbindlist(lapply(face.files,function(j){
 
@@ -63,17 +84,32 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 
 	}), use.names=TRUE, fill=TRUE)
 	
-	faces.dt[,USCB_tract_10 := paste0(STATEFP10,COUNTYFP10,TRACTCE10)]
-	faces.dt[,USCB_block_10 := paste0(STATEFP10,COUNTYFP10,TRACTCE10,BLOCKCE10)]
 	
-	###########################################
-	###pull 2010 block-level population data###
-	###########################################
+	if(as.character(geo.year)=="2010") {
+		faces.dt[,USCB_tract_this := paste0(STATEFP10,COUNTYFP10,TRACTCE10)]
+		
+		faces.dt[,USCB_block_this := paste0(STATEFP10,COUNTYFP10,TRACTCE10,BLOCKCE10)]
+	} else {
+		faces.dt[,USCB_tract_this := paste0(STATEFP20,COUNTYFP20,TRACTCE20)]
+		
+		faces.dt[,USCB_block_this := paste0(STATEFP20,COUNTYFP20,TRACTCE20,BLOCKCE20)]
+	}
+	
+	######################################
+	###pull block-level population data###
+	######################################
 	
 	mycensuskey <-"2ca0b2830ae4835905efab6c35f8cd2b3f570a8a"
-	my.survey <- "dec/sf1"
-	my.vars <- c("P001001")
-	my.vintage <- 2010
+	
+	if(as.character(geo.year)=="2010") {
+		my.survey <- "dec/sf1"
+		my.vars <- c("P001001")
+		my.vintage <- 2010
+	} else {
+		my.survey <- "dec/pl"
+		my.vars <- c("P1_001N")
+		my.vintage <- 2020
+	}
 
 	api.data_cb <- rbindlist(lapply(1:nrow(FIPS.dt), function(x) as.data.table(getCensus(name = my.survey,
 		vintage = my.vintage,
@@ -82,18 +118,28 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 		region = "block:*",
 		regionin = paste0("state:",FIPS.dt[x]$state,"+county:",FIPS.dt[x]$county)))))
 
-	api.data_cb[,USCB_block_10 := paste0(state,county,tract,block)]
-	api.data_cb[,USCB_tract_10 := paste0(state,county,tract)]
+	api.data_cb[,USCB_block_this := paste0(state,county,tract,block)]
+	api.data_cb[,USCB_tract_this := paste0(state,county,tract)]
+	setnames(api.data_cb,my.vars,c("USCB_pop"))
+	
 	
 	##################################################
 	###load Topological Faces / Area Landmark files###
 	##################################################
 	
-	facesal.files <- paste0("tl_2019_",unique(FIPS.dt$state),"_facesal")
+	facesal.files <- paste0("tl_",f_year,"_",unique(FIPS.dt$state),"_facesal")
+	
+	###check if files are where they should be###
+	ff <- list.files(file.path(USCB_TIGER.path,"FACESAL"))
+	
+	if(length(facesal.files[!facesal.files %in% ff]) > 0){
+		stop("\nThe following files are missing:\n",paste(facesal.files[!facesal.files %in% ff],collapse="\n"))
+	}
+	
 	
 	facesal.dt <- rbindlist(lapply(facesal.files,function(j){
 
-		###read in sbf###
+		###read in dbf###
 		return(as.data.table(read.dbf(file.path(file.path("FACESAL",j),paste0(j,'.dbf')))))
 
 	}), use.names=TRUE, fill=TRUE)
@@ -103,7 +149,14 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	###load Area Landmark files###
 	##############################
 	
-	arealm.files <- paste0("tl_2019_",unique(FIPS.dt$state),"_arealm")
+	arealm.files <- paste0("tl_",f_year,"_",unique(FIPS.dt$state),"_arealm")
+	
+	###check if files are where they should be###
+	ff <- list.files(file.path(USCB_TIGER.path,"AREALM"))
+	
+	if(length(arealm.files[!arealm.files %in% ff]) > 0){
+		stop("\nThe following files are missing:\n",paste(arealm.files[!arealm.files %in% ff],collapse="\n"))
+	}
 	
 	arealm.dt <- rbindlist(lapply(arealm.files,function(j){
 
@@ -125,49 +178,49 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	###calculate proportion of census block that is park or open space###
 	arealm.dt <- merge(arealm.dt, facesal.dt, by="AREAID")
 	
-	arealm.dt <- merge(arealm.dt, faces.dt[LWFLAG !="P", c("TFID","USCB_tract_10","USCB_block_10","poly_area"),with=FALSE], by="TFID")
+	arealm.dt <- merge(arealm.dt, faces.dt[LWFLAG !="P", c("TFID","USCB_tract_this","USCB_block_this","poly_area"),with=FALSE], by="TFID")
 	
-	arealm.dt <- merge(arealm.dt[,.(poly_area=sum(poly_area)),by=list(USCB_block_10)], faces.dt[LWFLAG != "P",.(poly_area=sum(poly_area)), by=USCB_block_10], by="USCB_block_10")
+	arealm.dt <- merge(arealm.dt[,.(poly_area=sum(poly_area)),by=list(USCB_block_this)], faces.dt[LWFLAG != "P",.(poly_area=sum(poly_area)), by=USCB_block_this], by="USCB_block_this")
 	
 	arealm.dt[,prop.area := round(poly_area.x/poly_area.y,2)]
 
-	arealm.dt <- merge(arealm.dt, api.data_cb[,.(P001001=sum(P001001)),by=list(USCB_block_10)], by="USCB_block_10",all.x=TRUE)
+	arealm.dt <- merge(arealm.dt, api.data_cb[,.(USCB_pop=sum(USCB_pop)),by=list(USCB_block_this)], by="USCB_block_this",all.x=TRUE)
 	
 	#############################################
 	###generate table of census blocks to omit###
 	#############################################
 	
-	omit.dt <- merge(faces.dt[LWFLAG !="P", .(poly_area=sum(poly_area)),by=list(USCB_block_10,USCB_tract_10)], api.data_cb[,c("USCB_block_10","P001001"), with=FALSE], by="USCB_block_10", all.x=TRUE)
+	omit.dt <- merge(faces.dt[LWFLAG !="P", .(poly_area=sum(poly_area)),by=list(USCB_block_this,USCB_tract_this)], api.data_cb[,c("USCB_block_this","USCB_pop"), with=FALSE], by="USCB_block_this", all.x=TRUE)
 	
-	omit.dt[,P001001 := ifelse(is.na(P001001),0,P001001)]
+	omit.dt[,USCB_pop := ifelse(is.na(USCB_pop),0,USCB_pop)]
 
-	###deal with errors where unpopulated parks/open spaces have P001001 > 0 (e.g., Central Park, Bronx Zoo)###
-	omit.dt[,P001001 := ifelse(USCB_block_10 %in% unique(arealm.dt[P001001 > 0 & prop.area==1]$USCB_block_10), 0, P001001)]
+	###deal with errors where unpopulated parks/open spaces have USCB_pop > 0 (e.g., Central Park, Bronx Zoo)###
+	omit.dt[,USCB_pop := ifelse(USCB_block_this %in% unique(arealm.dt[USCB_pop > 0 & prop.area==1]$USCB_block_this), 0, USCB_pop)]
 	
-	omit.dt <- merge(omit.dt[P001001==0,.(poly_area=sum(poly_area)),by=list(USCB_tract_10)],omit.dt[,.(poly_area=sum(poly_area)),by=list(USCB_tract_10)], by="USCB_tract_10", all.y=TRUE)
+	omit.dt <- merge(omit.dt[USCB_pop==0,.(poly_area=sum(poly_area)),by=list(USCB_tract_this)],omit.dt[,.(poly_area=sum(poly_area)),by=list(USCB_tract_this)], by="USCB_tract_this", all.y=TRUE)
 
 	omit.dt[,prop.area := round(poly_area.x/poly_area.y,2)]
 	
 	omit.dt <- omit.dt[prop.area==1]
 	
-	omit.dt[,type := ifelse(USCB_tract_10 %in% unique(substr(arealm.dt[P001001 > 0 & prop.area==1]$USCB_block_10,1,11)),"park_openspace","unpopulated")]
+	omit.dt[,type := ifelse(USCB_tract_this %in% unique(substr(arealm.dt[USCB_pop > 0 & prop.area==1]$USCB_block_this,1,11)),"park_openspace","unpopulated")]
 	
 	
 	###################################################
 	###generate a table of neighboring census blocks###
 	###################################################
 	
-	b.dt <- merge(merge(unique(edges.dt[,c("TLID","TFIDL","TFIDR","edge_len"),with=FALSE]),unique(faces.dt[,c("TFID","USCB_block_10","LWFLAG"),with=FALSE]),by.x="TFIDL",by.y="TFID"), unique(faces.dt[,c("TFID","USCB_block_10","LWFLAG"),with=FALSE]),by.x="TFIDR",by.y="TFID")
+	b.dt <- merge(merge(unique(edges.dt[,c("TLID","TFIDL","TFIDR","edge_len"),with=FALSE]),unique(faces.dt[,c("TFID","USCB_block_this","LWFLAG"),with=FALSE]),by.x="TFIDL",by.y="TFID"), unique(faces.dt[,c("TFID","USCB_block_this","LWFLAG"),with=FALSE]),by.x="TFIDR",by.y="TFID")
 
-	b.dt <- b.dt[USCB_block_10.x != USCB_block_10.y]
+	b.dt <- b.dt[USCB_block_this.x != USCB_block_this.y]
 
-	b.dt[,USCB_block_10.1 := ifelse(as.numeric(USCB_block_10.x) > as.numeric(USCB_block_10.y), USCB_block_10.y, USCB_block_10.x)]
-	b.dt[,LWFLAG.1 := ifelse(as.numeric(USCB_block_10.x) > as.numeric(USCB_block_10.y), LWFLAG.y, LWFLAG.x)]
+	b.dt[,USCB_block_this.1 := ifelse(as.numeric(USCB_block_this.x) > as.numeric(USCB_block_this.y), USCB_block_this.y, USCB_block_this.x)]
+	b.dt[,LWFLAG.1 := ifelse(as.numeric(USCB_block_this.x) > as.numeric(USCB_block_this.y), LWFLAG.y, LWFLAG.x)]
 
-	b.dt[,USCB_block_10.2 := ifelse(as.numeric(USCB_block_10.x) > as.numeric(USCB_block_10.y), USCB_block_10.x, USCB_block_10.y)]
-	b.dt[,LWFLAG.2 := ifelse(as.numeric(USCB_block_10.x) > as.numeric(USCB_block_10.y), LWFLAG.x, LWFLAG.y)]
+	b.dt[,USCB_block_this.2 := ifelse(as.numeric(USCB_block_this.x) > as.numeric(USCB_block_this.y), USCB_block_this.x, USCB_block_this.y)]
+	b.dt[,LWFLAG.2 := ifelse(as.numeric(USCB_block_this.x) > as.numeric(USCB_block_this.y), LWFLAG.x, LWFLAG.y)]
 
-	b.dt2 <- b.dt[,.(edge_len=sum(edge_len)),by=list(USCB_block_10.1,LWFLAG.1,USCB_block_10.2,LWFLAG.2)]
+	b.dt2 <- b.dt[,.(edge_len=sum(edge_len)),by=list(USCB_block_this.1,LWFLAG.1,USCB_block_this.2,LWFLAG.2)]
 
 	b.dt2 <- b.dt2[LWFLAG.1 != "P" & LWFLAG.2 != "P"]
 	
@@ -176,43 +229,43 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	#############################################################
 
 	###all relationships###
-	zz1 <- b.dt2[,.(tot=.N),by=USCB_block_10.1]
-	setnames(zz1,c("USCB_block_10.1"),c("USCB_block_10"))
+	zz1 <- b.dt2[,.(tot=.N),by=USCB_block_this.1]
+	setnames(zz1,c("USCB_block_this.1"),c("USCB_block_this"))
 
-	zz2 <- b.dt2[,.(tot=.N),by=USCB_block_10.2]
-	setnames(zz2,c("USCB_block_10.2"),c("USCB_block_10"))
+	zz2 <- b.dt2[,.(tot=.N),by=USCB_block_this.2]
+	setnames(zz2,c("USCB_block_this.2"),c("USCB_block_this"))
 
 	block.dt1 <- rbindlist(list(zz1,zz2),use.names=TRUE,fill=TRUE)
 
 	###inter county relationships###
-	zz1 <- b.dt2[substr(USCB_block_10.1,1,5) != substr(USCB_block_10.2,1,5),.(tot.c=.N),by=USCB_block_10.1]
-	setnames(zz1,c("USCB_block_10.1"),c("USCB_block_10"))
+	zz1 <- b.dt2[substr(USCB_block_this.1,1,5) != substr(USCB_block_this.2,1,5),.(tot.c=.N),by=USCB_block_this.1]
+	setnames(zz1,c("USCB_block_this.1"),c("USCB_block_this"))
 
-	zz2 <- b.dt2[substr(USCB_block_10.1,1,5) != substr(USCB_block_10.2,1,5),.(tot.c=.N),by=USCB_block_10.2]
-	setnames(zz2,c("USCB_block_10.2"),c("USCB_block_10"))
+	zz2 <- b.dt2[substr(USCB_block_this.1,1,5) != substr(USCB_block_this.2,1,5),.(tot.c=.N),by=USCB_block_this.2]
+	setnames(zz2,c("USCB_block_this.2"),c("USCB_block_this"))
 
 	block.dt2 <- rbindlist(list(zz1,zz2),use.names=TRUE,fill=TRUE)
 
-	block_rel.dt <- merge(block.dt1,block.dt2,by="USCB_block_10",all.x=TRUE,all.y=TRUE)
+	block_rel.dt <- merge(block.dt1,block.dt2,by="USCB_block_this",all.x=TRUE,all.y=TRUE)
 
 	rm(zz1,zz2,block.dt1,block.dt2)
 
 	block_rel.dt[,tot.c := ifelse(is.na(tot.c),0,tot.c)]
 
-	block_rel.dt <- merge(block_rel.dt, api.data_cb[,c("USCB_block_10","P001001"), with=FALSE], by="USCB_block_10", all.x=TRUE)
+	block_rel.dt <- merge(block_rel.dt, api.data_cb[,c("USCB_block_this","USCB_pop"), with=FALSE], by="USCB_block_this", all.x=TRUE)
 
 	###remove piers misassigned to another county (e.g., piers in Queens and Brooklyn misassigned to Manhattan)###
-	piers.dt <- block_rel.dt[tot.c==tot & P001001==0]
+	piers.dt <- block_rel.dt[tot.c==tot & USCB_pop==0]
 
-	b.dt2[,is.pier := ifelse(USCB_block_10.1 %in% piers.dt$USCB_block_10 | USCB_block_10.2 %in% piers.dt$USCB_block_10,1,0)]
+	b.dt2[,is.pier := ifelse(USCB_block_this.1 %in% piers.dt$USCB_block_this | USCB_block_this.2 %in% piers.dt$USCB_block_this,1,0)]
 
 	###generate tracts from blocks###
-	b.dt2[,USCB_tract_10.1 := substr(USCB_block_10.1,1,11)]
-	b.dt2[,USCB_tract_10.2 := substr(USCB_block_10.2,1,11)]
+	b.dt2[,USCB_tract_this.1 := substr(USCB_block_this.1,1,11)]
+	b.dt2[,USCB_tract_this.2 := substr(USCB_block_this.2,1,11)]
 
 	###aggregate by census tracts and exclude piers###
-	neighbors.dt <- b.dt2[is.pier==0,.(edge_len=sum(as.numeric(edge_len))),by=list(USCB_tract_10.1,USCB_tract_10.2)]
-	neighbors.dt <- neighbors.dt[USCB_tract_10.1 != USCB_tract_10.2]
+	neighbors.dt <- b.dt2[is.pier==0,.(edge_len=sum(as.numeric(edge_len))),by=list(USCB_tract_this.1,USCB_tract_this.2)]
+	neighbors.dt <- neighbors.dt[USCB_tract_this.1 != USCB_tract_this.2]
 	
 	############################
 	###generate a node tables###
@@ -226,11 +279,11 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 
 	node.dt <- unique(rbindlist(list(node.dt1,node.dt2),use.names=TRUE,fill=TRUE))
 
-	node.dt <- merge(node.dt,faces.dt[,c("TFID", "USCB_block_10", "USCB_tract_10","LWFLAG"),with=FALSE],by.x="TFIDL",by.y="TFID",all.x=TRUE)
+	node.dt <- merge(node.dt,faces.dt[,c("TFID", "USCB_block_this", "USCB_tract_this","LWFLAG"),with=FALSE],by.x="TFIDL",by.y="TFID",all.x=TRUE)
 
-	node.dt <- merge(node.dt,faces.dt[,c("TFID", "USCB_block_10", "USCB_tract_10","LWFLAG"),with=FALSE],by.x="TFIDR",by.y="TFID",all.x=TRUE)
+	node.dt <- merge(node.dt,faces.dt[,c("TFID", "USCB_block_this", "USCB_tract_this","LWFLAG"),with=FALSE],by.x="TFIDR",by.y="TFID",all.x=TRUE)
 
-	node.dt.m <- melt(node.dt, id.vars = c("TNID"), measure = list(c("USCB_tract_10.x", "USCB_tract_10.y"), c("LWFLAG.x", "LWFLAG.y")), value.name = c("USCB_tract_10", "LWFLAG"))
+	node.dt.m <- melt(node.dt, id.vars = c("TNID"), measure = list(c("USCB_tract_this.x", "USCB_tract_this.y"), c("LWFLAG.x", "LWFLAG.y")), value.name = c("USCB_tract_this", "LWFLAG"))
 
 	node.dt.m[,variable:=NULL]
 	node.dt.all <- unique(copy(node.dt.m))
@@ -243,7 +296,7 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	#########################################################
 	###generate table for tracts that share a single point###
 	#########################################################
-	pt.dt <- melt(node.dt, id.vars = c("TNID"), measure = list(c("USCB_block_10.x", "USCB_block_10.y"), c("LWFLAG.x", "LWFLAG.y")), value.name = c("USCB_block_10", "LWFLAG"))
+	pt.dt <- melt(node.dt, id.vars = c("TNID"), measure = list(c("USCB_block_this.x", "USCB_block_this.y"), c("LWFLAG.x", "LWFLAG.y")), value.name = c("USCB_block_this", "LWFLAG"))
 
 	###remove tables that are no longer needed###
 	rm(node.dt1,node.dt2,node.dt)
@@ -254,22 +307,22 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	pt.dt <- unique(pt.dt)
 
 	pt.dt <- merge(pt.dt,pt.dt,by="TNID",allow.cartesian=TRUE)
-	pt.dt <- pt.dt[USCB_block_10.x != USCB_block_10.y]
+	pt.dt <- pt.dt[USCB_block_this.x != USCB_block_this.y]
 
 	###remove piers###
-	pt.dt[,is.pier := ifelse((substr(USCB_block_10.x,1,5) != substr(USCB_block_10.y,1,5)) & ((USCB_block_10.x %in% piers.dt$USCB_block_10) | (USCB_block_10.y %in% piers.dt$USCB_block_10)), 1, 0)]
+	pt.dt[,is.pier := ifelse((substr(USCB_block_this.x,1,5) != substr(USCB_block_this.y,1,5)) & ((USCB_block_this.x %in% piers.dt$USCB_block_this) | (USCB_block_this.y %in% piers.dt$USCB_block_this)), 1, 0)]
 
 	pt.dt <- pt.dt[is.pier==0]
 
-	pt.dt[,USCB_tract_10.1 := ifelse(as.numeric(substr(USCB_block_10.x,1,11)) < as.numeric(substr(USCB_block_10.y,1,11)), substr(USCB_block_10.x,1,11), substr(USCB_block_10.y,1,11))]
+	pt.dt[,USCB_tract_this.1 := ifelse(as.numeric(substr(USCB_block_this.x,1,11)) < as.numeric(substr(USCB_block_this.y,1,11)), substr(USCB_block_this.x,1,11), substr(USCB_block_this.y,1,11))]
 
-	pt.dt[,USCB_tract_10.2 := ifelse(as.numeric(substr(USCB_block_10.x,1,11)) < as.numeric(substr(USCB_block_10.y,1,11)), substr(USCB_block_10.y,1,11), substr(USCB_block_10.x,1,11))]
+	pt.dt[,USCB_tract_this.2 := ifelse(as.numeric(substr(USCB_block_this.x,1,11)) < as.numeric(substr(USCB_block_this.y,1,11)), substr(USCB_block_this.y,1,11), substr(USCB_block_this.x,1,11))]
 
-	pt.dt[,c("TNID","USCB_block_10.x","USCB_block_10.y","is.pier"):=NULL]
-	pt.dt <- unique(pt.dt)[USCB_tract_10.1 != USCB_tract_10.2]
+	pt.dt[,c("TNID","USCB_block_this.x","USCB_block_this.y","is.pier"):=NULL]
+	pt.dt <- unique(pt.dt)[USCB_tract_this.1 != USCB_tract_this.2]
 
-	pt.dt <- merge(pt.dt, neighbors.dt, by=c("USCB_tract_10.1", "USCB_tract_10.2"), all.x=TRUE)
-	pt.dt <- pt.dt[is.na(edge_len) & !(is.na(USCB_tract_10.1)) & !(is.na(USCB_tract_10.2))]
+	pt.dt <- merge(pt.dt, neighbors.dt, by=c("USCB_tract_this.1", "USCB_tract_this.2"), all.x=TRUE)
+	pt.dt <- pt.dt[is.na(edge_len) & !(is.na(USCB_tract_this.1)) & !(is.na(USCB_tract_this.2))]
 	pt.dt[,edge_len := 0]
 
 	if(nrow(pt.dt)>0){
@@ -316,16 +369,16 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	bridges.nodes.dt[,to_tot := ifelse(is.na(to_tot),0,to_tot)]
 	bridges.nodes.dt <- merge(bridges.nodes.dt, dg.dt, by="TNID", all.x=TRUE)
 
-	bridges.nodes.dt_ends <- unique(merge(bridges.nodes.dt[to_tot==0 | from_tot==0], node.dt.m, by="TNID")[,c("b_grp","USCB_tract_10"),with=FALSE])
+	bridges.nodes.dt_ends <- unique(merge(bridges.nodes.dt[to_tot==0 | from_tot==0], node.dt.m, by="TNID")[,c("b_grp","USCB_tract_this"),with=FALSE])
 
 	bridges.nodes.dt_ends <- merge(bridges.nodes.dt_ends,bridges.nodes.dt_ends,by="b_grp", allow.cartesian=TRUE)
-	bridges.nodes.dt_ends <- unique(bridges.nodes.dt_ends)[USCB_tract_10.x != USCB_tract_10.y]
+	bridges.nodes.dt_ends <- unique(bridges.nodes.dt_ends)[USCB_tract_this.x != USCB_tract_this.y]
 
-	bridges.nodes.dt_ends[,USCB_tract_10.1 := ifelse(as.numeric(USCB_tract_10.x) < as.numeric(USCB_tract_10.y),USCB_tract_10.x,USCB_tract_10.y)]
+	bridges.nodes.dt_ends[,USCB_tract_this.1 := ifelse(as.numeric(USCB_tract_this.x) < as.numeric(USCB_tract_this.y),USCB_tract_this.x,USCB_tract_this.y)]
 
-	bridges.nodes.dt_ends[,USCB_tract_10.2 := ifelse(as.numeric(USCB_tract_10.x) < as.numeric(USCB_tract_10.y),USCB_tract_10.y,USCB_tract_10.x)]
+	bridges.nodes.dt_ends[,USCB_tract_this.2 := ifelse(as.numeric(USCB_tract_this.x) < as.numeric(USCB_tract_this.y),USCB_tract_this.y,USCB_tract_this.x)]
 
-	bridges.nodes.dt_ends <- unique(bridges.nodes.dt_ends[,c("b_grp","USCB_tract_10.1","USCB_tract_10.2"),with=FALSE])
+	bridges.nodes.dt_ends <- unique(bridges.nodes.dt_ends[,c("b_grp","USCB_tract_this.1","USCB_tract_this.2"),with=FALSE])
 
 	###get length by node###
 	bridges.dt <- merge(bridges.dt, dg.dt, by.x = "TNIDF", by.y="TNID", all.x=TRUE)
@@ -337,16 +390,16 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 
 	bridges.dt_agg[,edge_len := NULL]
 	bridges.dt_agg <- merge(bridges.dt_agg, bridges.nodes.dt_ends, by="b_grp", all.x=TRUE)
-	bridges.dt_agg <- bridges.dt_agg[bridges.dt_agg[, .I[which.min(bridge_length)], by=list(USCB_tract_10.1, USCB_tract_10.2)]$V1]
+	bridges.dt_agg <- bridges.dt_agg[bridges.dt_agg[, .I[which.min(bridge_length)], by=list(USCB_tract_this.1, USCB_tract_this.2)]$V1]
 
 
 	###remove bridge relationships that are already in neighbor relationships table###
 	keep.cols <- names(bridges.dt_agg)
-	bridges.dt_agg <- merge(bridges.dt_agg,neighbors.dt,by=c("USCB_tract_10.1","USCB_tract_10.2"),all.x=TRUE)
+	bridges.dt_agg <- merge(bridges.dt_agg,neighbors.dt,by=c("USCB_tract_this.1","USCB_tract_this.2"),all.x=TRUE)
 	bridges.dt_agg <- bridges.dt_agg[is.na(edge_len),keep.cols,with=FALSE]
-	bridges.dt_agg <- bridges.dt_agg[!is.na(USCB_tract_10.1) & !is.na(USCB_tract_10.2)]
+	bridges.dt_agg <- bridges.dt_agg[!is.na(USCB_tract_this.1) & !is.na(USCB_tract_this.2)]
 	bridges.dt_agg[,b_grp := NULL]
-	setorder(bridges.dt_agg,USCB_tract_10.1,USCB_tract_10.2)
+	setorder(bridges.dt_agg,USCB_tract_this.1,USCB_tract_this.2)
 
 	bridges.dt_agg[,type := "bridge connection"]
 	
@@ -370,7 +423,7 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 			warning("Some addresses in your address table failed to geocode. Please check your address table.\n")
 		}
 
-		gc.dt[,USCB_tract_10 := paste0(sprintf("%02d", cxy_state_id),sprintf("%03d", cxy_county_id),sprintf("%06d", cxy_tract_id))]
+		gc.dt[,USCB_tract_this := paste0(sprintf("%02d", cxy_state_id),sprintf("%03d", cxy_county_id),sprintf("%06d", cxy_tract_id))]
 		
 		gc.dt[,tot := .N, by=group_ID]
 		
@@ -381,31 +434,31 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 		gc.dt <- gc.dt[tot > 1]
 
 		if(nrow(gc.dt) > 0){
-			gc.dt <- merge(gc.dt[,c('group_ID','USCB_tract_10'),with=FALSE],gc.dt[,c('group_ID','USCB_tract_10'),with=FALSE],by="group_ID")[USCB_tract_10.x != USCB_tract_10.y]
+			gc.dt <- merge(gc.dt[,c('group_ID','USCB_tract_this'),with=FALSE],gc.dt[,c('group_ID','USCB_tract_this'),with=FALSE],by="group_ID")[USCB_tract_this.x != USCB_tract_this.y]
 			
-			gc.dt[,USCB_tract_10.1 := ifelse(as.numeric(USCB_tract_10.x) < as.numeric(USCB_tract_10.y),USCB_tract_10.x,USCB_tract_10.y)]
+			gc.dt[,USCB_tract_this.1 := ifelse(as.numeric(USCB_tract_this.x) < as.numeric(USCB_tract_this.y),USCB_tract_this.x,USCB_tract_this.y)]
 
-			gc.dt[,USCB_tract_10.2 := ifelse(as.numeric(USCB_tract_10.x) < as.numeric(USCB_tract_10.y),USCB_tract_10.y,USCB_tract_10.x)]
+			gc.dt[,USCB_tract_this.2 := ifelse(as.numeric(USCB_tract_this.x) < as.numeric(USCB_tract_this.y),USCB_tract_this.y,USCB_tract_this.x)]
 
-			gc.dt[,c("USCB_tract_10.x","USCB_tract_10.y"):=NULL]
+			gc.dt[,c("USCB_tract_this.x","USCB_tract_this.y"):=NULL]
 
-			gc.dt <- gc.dt[gc.dt[, .I[which.min(group_ID)], by=list(USCB_tract_10.1, USCB_tract_10.2)]$V1]
+			gc.dt <- gc.dt[gc.dt[, .I[which.min(group_ID)], by=list(USCB_tract_this.1, USCB_tract_this.2)]$V1]
 
 			###remove address pair relationships that are already in neighbor relationships table###
 			keep.cols <- names(gc.dt)
-			gc.dt <- merge(gc.dt,neighbors.dt,by=c("USCB_tract_10.1","USCB_tract_10.2"),all.x=TRUE)
+			gc.dt <- merge(gc.dt,neighbors.dt,by=c("USCB_tract_this.1","USCB_tract_this.2"),all.x=TRUE)
 			gc.dt <- gc.dt[is.na(edge_len),keep.cols,with=FALSE]
-			setorder(gc.dt,USCB_tract_10.1,USCB_tract_10.2)
+			setorder(gc.dt,USCB_tract_this.1,USCB_tract_this.2)
 
 			if(isTRUE(use.bridges)){
 				###remove address pair relationships that are already in bridges relationships table###
-				gc.dt <- merge(gc.dt,bridges.dt_agg,by=c("USCB_tract_10.1","USCB_tract_10.2"),all.x=TRUE)
+				gc.dt <- merge(gc.dt,bridges.dt_agg,by=c("USCB_tract_this.1","USCB_tract_this.2"),all.x=TRUE)
 				gc.dt <- gc.dt[is.na(bridge_length),keep.cols,with=FALSE]
-				setorder(gc.dt,USCB_tract_10.1,USCB_tract_10.2)
+				setorder(gc.dt,USCB_tract_this.1,USCB_tract_this.2)
 			} 
 			
 			###retain address connections###
-			omit.dt <- omit.dt[!(USCB_tract_10 %in% unique(c(gc.dt$USCB_tract_10.1,gc.dt$USCB_tract_10.2)))]
+			omit.dt <- omit.dt[!(USCB_tract_this %in% unique(c(gc.dt$USCB_tract_this.1,gc.dt$USCB_tract_this.2)))]
 			
 			gc.dt[,type := "manual"]
 			
@@ -418,12 +471,12 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	
 	###merge to relationship tables###
 	
-	all_pairs.dt <- neighbors.dt[,c("USCB_tract_10.1","USCB_tract_10.2","type"),with=FALSE]
+	all_pairs.dt <- neighbors.dt[,c("USCB_tract_this.1","USCB_tract_this.2","type"),with=FALSE]
 	
 	if(exists("gc.dt")){
 	if("data.table" %in% class(gc.dt)){
-		if(all(c("group_ID","USCB_tract_10.1","USCB_tract_10.2","type" ) %in% names(gc.dt)) & (nrow(gc.dt) > 0)) {
-			all_pairs.dt <- rbindlist(list(gc.dt[,c("USCB_tract_10.1","USCB_tract_10.2","type"),with=FALSE],all_pairs.dt), use.names=TRUE, fill=TRUE) 
+		if(all(c("group_ID","USCB_tract_this.1","USCB_tract_this.2","type" ) %in% names(gc.dt)) & (nrow(gc.dt) > 0)) {
+			all_pairs.dt <- rbindlist(list(gc.dt[,c("USCB_tract_this.1","USCB_tract_this.2","type"),with=FALSE],all_pairs.dt), use.names=TRUE, fill=TRUE) 
 		}
 	}
 	}
@@ -431,22 +484,22 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	
 	
 	if(isTRUE(use.bridges)){
-		all_pairs.dt <- rbindlist(list(bridges.dt_agg[,c("USCB_tract_10.1","USCB_tract_10.2","type"),with=FALSE],all_pairs.dt), use.names=TRUE, fill=TRUE) 
+		all_pairs.dt <- rbindlist(list(bridges.dt_agg[,c("USCB_tract_this.1","USCB_tract_this.2","type"),with=FALSE],all_pairs.dt), use.names=TRUE, fill=TRUE) 
 		
 		###retain bridge connections###
-		omit.dt <- omit.dt[!(USCB_tract_10 %in% unique(c(bridges.dt_agg$USCB_tract_10.1,bridges.dt_agg$USCB_tract_10.2)))]
+		omit.dt <- omit.dt[!(USCB_tract_this %in% unique(c(bridges.dt_agg$USCB_tract_this.1,bridges.dt_agg$USCB_tract_this.2)))]
 		
 	}
 	
 	
 	if(isTRUE(omit.park_openspace)){
-		omit.ct <- omit.dt[type=="park_openspace"]$USCB_tract_10
-		all_pairs.dt <- all_pairs.dt[!(USCB_tract_10.1 %in% omit.ct) & !(USCB_tract_10.2 %in% omit.ct)]
+		omit.ct <- omit.dt[type=="park_openspace"]$USCB_tract_this
+		all_pairs.dt <- all_pairs.dt[!(USCB_tract_this.1 %in% omit.ct) & !(USCB_tract_this.2 %in% omit.ct)]
 	}
 	
 	if(isTRUE(omit.unpopulated)){
-		omit.ct <- omit.dt[type=="unpopulated"]$USCB_tract_10
-		all_pairs.dt <- all_pairs.dt[!(USCB_tract_10.1 %in% omit.ct) & !(USCB_tract_10.2 %in% omit.ct)]
+		omit.ct <- omit.dt[type=="unpopulated"]$USCB_tract_this
+		all_pairs.dt <- all_pairs.dt[!(USCB_tract_this.1 %in% omit.ct) & !(USCB_tract_this.2 %in% omit.ct)]
 	}
 
 	
@@ -455,21 +508,28 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	###add rows for tracts without neighbors###
 	###########################################
 	
-	unq.ct <- unique(substr(faces.dt[LWFLAG != "P"]$USCB_block_10,1,11))
+	unq.ct <- unique(substr(faces.dt[LWFLAG != "P"]$USCB_block_this,1,11))
 
-	island.dt <- data.table(USCB_tract_10.1 = unq.ct[!(unq.ct %in% unique(c(all_pairs.dt$USCB_tract_10.1,all_pairs.dt$USCB_tract_10.2)))], USCB_tract_10.2 = NA)
+	island.dt <- data.table(USCB_tract_this.1 = unq.ct[!(unq.ct %in% unique(c(all_pairs.dt$USCB_tract_this.1,all_pairs.dt$USCB_tract_this.2)))], USCB_tract_this.2 = NA)
 	
-	island.dt <- merge(island.dt, unique(omit.dt[,c("USCB_tract_10","type"),with=FALSE]), by.x="USCB_tract_10.1", by.y="USCB_tract_10", all.x=TRUE)
+	island.dt <- merge(island.dt, unique(omit.dt[,c("USCB_tract_this","type"),with=FALSE]), by.x="USCB_tract_this.1", by.y="USCB_tract_this", all.x=TRUE)
 	
 	island.dt[,type := trimws(paste("self",ifelse(is.na(type),"",type)))]
 	
 	all_pairs.dt <- rbindlist(list(all_pairs.dt,island.dt), use.names=TRUE, fill=TRUE)
 
-	all_pairs.dt <- all_pairs.dt[(substr(USCB_tract_10.1,1,5) %in% paste0(FIPS.dt$state,FIPS.dt$county)) & ((substr(USCB_tract_10.2,1,5) %in% paste0(FIPS.dt$state,FIPS.dt$county)) | (is.na(USCB_tract_10.2)))]
+	all_pairs.dt <- all_pairs.dt[(substr(USCB_tract_this.1,1,5) %in% paste0(FIPS.dt$state,FIPS.dt$county)) & ((substr(USCB_tract_this.2,1,5) %in% paste0(FIPS.dt$state,FIPS.dt$county)) | (is.na(USCB_tract_this.2)))]
 	
 	invisible(gc())
 	
 	setwd(old.wd)
+	
+	
+	if(as.character(geo.year)=="2010") {
+		setnames(all_pairs.dt,c("USCB_tract_this.1","USCB_tract_this.2"),c("USCB_tract_2010.1","USCB_tract_2010.2"))
+	} else {
+		setnames(all_pairs.dt,c("USCB_tract_this.1","USCB_tract_this.2"),c("USCB_tract_2020.1","USCB_tract_2020.2"))
+	}
 	
 	return(all_pairs.dt)
 
