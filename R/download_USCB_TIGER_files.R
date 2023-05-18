@@ -1,11 +1,25 @@
 ###disable scientific notation###
 options(scipen = 999)
+###extend file download timeout###
+options(timeout=240)
 
 ###load packages###
 library(data.table)
 
 data.table::setDTthreads(1)
 
+d_f <- function(this.URL,main.path,USCB_TIGER.path) {
+	file <- basename(this.URL)
+				
+	###download commpressed file###
+	download.file(this.URL, file)
+				
+	###unzip compressed file###
+	unzip(file, exdir = file.path(main.path,tools::file_path_sans_ext(file)))
+				
+	###removed compressed file###
+	file.remove(file.path(USCB_TIGER.path,file))
+}
 
 download_USCB_TIGER_files <- function(FIPS_dt,USCB_TIGER.path){
 	
@@ -17,138 +31,44 @@ download_USCB_TIGER_files <- function(FIPS_dt,USCB_TIGER.path){
 	
 	FIPS.dt <- unique(FIPS.dt[,c("state","county"),with=FALSE])
 
-	base.URL <- "https://www2.census.gov/geo/tiger/TIGER2019"
+	base.URL <- "https://www2.census.gov/geo/tiger/TIGER2022"
 
 	old.wd <- getwd()
 
 	setwd(USCB_TIGER.path)
 	
-	###############################
-	###download faces shapefiles###
-	###############################
+	file.dt <- data.table(f_name=c("FACES","EDGES","FACESAL","AREALM"),f_desc=c("FACES","EDGES","Topological Faces-Area Landmark relationship","Area Landmark relationship"),f_type=c("county","county","state","state"))
+	
+	
+	for (k in 1:nrow(file.dt)){
+	
+		this.f_name <- file.dt[k]$f_name
+		this.f_desc <- file.dt[k]$f_desc
+		this.f_type <- file.dt[k]$f_type
+	
+		main.URL <- file.path(base.URL,this.f_name)
+		main.path <- file.path(USCB_TIGER.path,this.f_name)
+		
+		if (this.f_type=="county") {
+			for (j in 1:nrow(FIPS.dt)){
+			
+				this.URL <- file.path(main.URL,paste0("tl_2022_",FIPS.dt[j]$state,FIPS.dt[j]$county,"_",tolower(this.f_name),".zip"))
 
-	main.URL <- file.path(base.URL,"FACES")
-	main.path <- file.path(USCB_TIGER.path,"FACES")
+				d_f(this.URL,main.path,USCB_TIGER.path)
+			}
+		} else{
+			for (j in unique(FIPS.dt$state)){
+				
+				this.URL <- file.path(main.URL,paste0("tl_2022_",j,"_",tolower(this.f_name),".zip"))
 
-	for (j in 1:nrow(FIPS.dt)){
-
-		#j <- 1
+				d_f(this.URL,main.path,USCB_TIGER.path)
+			}
+		}
 		
-		this.URL <- file.path(main.URL,paste0("tl_2019_",FIPS.dt[j]$state,FIPS.dt[j]$county,"_faces.zip"))
-
-		file <- basename(this.URL)
+		cat(paste0("\n\nUSCB TIGER ",this.f_desc," files downloaded.\n\n"))
 		
-		###download commpressed file###
-		download.file(this.URL, file)
-		
-		###unzip compressed file###
-		unzip(file, exdir = file.path(main.path,tools::file_path_sans_ext(file)))
-		
-		###removed compressed file###
-		file.remove(file.path(USCB_TIGER.path,file))
-		
+		invisible(gc())
+	
 	}
 	
-	cat("USCB TIGER FACES files downloaded.\n")
-
-	invisible(gc())
-
-
-	###############################
-	###download edges shapefiles###
-	###############################
-
-	main.URL <- file.path(base.URL,"EDGES")
-	main.path <- file.path(USCB_TIGER.path,"EDGES")
-
-	for (j in 1:nrow(FIPS.dt)){
-
-		#j <- 1
-		
-		this.URL <- file.path(main.URL,paste0("tl_2019_",FIPS.dt[j]$state,FIPS.dt[j]$county,"_edges.zip"))
-
-		file <- basename(this.URL)
-		
-		###download commpressed file###
-		download.file(this.URL, file)
-		
-		###unzip compressed file###
-		unzip(file, exdir = file.path(main.path,tools::file_path_sans_ext(file)))
-		
-		###removed compressed file###
-		file.remove(file.path(USCB_TIGER.path,file))
-		
-	}
-	
-	cat("USCB TIGER EDGES files downloaded.\n")
-
-	invisible(gc())
-
-
-	################################################################
-	###download Topological Faces-Area Landmark Relationship File###
-	################################################################
-
-	main.URL <- file.path(base.URL,"FACESAL")
-	main.path <- file.path(USCB_TIGER.path,"FACESAL")
-
-	for (j in unique(FIPS.dt$state)){
-
-		#j <- 1
-		
-		this.URL <- file.path(main.URL,paste0("tl_2019_",j,"_facesal.zip"))
-
-		file <- basename(this.URL)
-		
-		###download commpressed file###
-		download.file(this.URL, file)
-		
-		###unzip compressed file###
-		unzip(file, exdir = file.path(main.path,tools::file_path_sans_ext(file)))
-		
-		###removed compressed file###
-		file.remove(file.path(USCB_TIGER.path,file))
-		
-	}
-	
-	cat("USCB TIGER Topological Faces-Area Landmark relationship files downloaded.\n")
-
-	invisible(gc())
-
-	##############################################
-	###download Area Landmark Relationship File###
-	##############################################
-
-	main.URL <- file.path(base.URL,"AREALM")
-	main.path <- file.path(USCB_TIGER.path,"AREALM")
-
-	for (j in unique(FIPS.dt$state)){
-
-		#j <- 1
-		
-		this.URL <- file.path(main.URL,paste0("tl_2019_",j,"_arealm.zip"))
-
-		file <- basename(this.URL)
-		
-		###download commpressed file###
-		download.file(this.URL, file)
-		
-		###unzip compressed file###
-		unzip(file, exdir = file.path(main.path,tools::file_path_sans_ext(file)))
-		
-		###removed compressed file###
-		file.remove(file.path(USCB_TIGER.path,file))
-		
-	}
-	
-	cat("USCB TIGER Area Landmark relationship files downloaded.\n")
-
-	invisible(gc())
-	
-	setwd(old.wd)
-
-	cat("USCB TIGER file download complete.\n")
-}
-
-
-
+}	
