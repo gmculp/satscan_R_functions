@@ -52,9 +52,9 @@ ADDR_dt <- data.table(ADDR=c("1 Bay St","4 South Street"), CITY = c("Staten Isla
 download_USCB_TIGER_files(FIPS.dt,USCB_TIGER.path)
 
 ###generate census tract relationship file###
-tract_pairs.dt <- generate_USCB_tract_network_file(FIPS_dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, ADDR_dt)
+tract_pairs.dt <- generate_USCB_tract_network_file(FIPS.dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, ADDR_dt)
 
 ###generate ZIP code tabulation area relationship file###
-ZCTA_pairs.dt <- generate_USCB_tract_network_file(FIPS_dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, ADDR_dt)
+ZCTA_pairs.dt <- generate_USCB_tract_network_file(FIPS.dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, ADDR_dt)
 
 
