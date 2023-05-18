@@ -40,7 +40,7 @@ source("R/generate_USCB_tract_network_file.R")
 USCB_TIGER.path <- "C:/SaTScan_resources/census_files"
 
 ###specify data table containing state and county FIPS codes###
-FIPS_dt <- data.table(state=rep("36",5),county=c("061","005","047","081","085"))
+FIPS.dt <- data.table(state=rep("36",5),county=c("061","005","047","081","085"))
 
 ###option to bring in CSV of addresses with column for connection ID###
 ###each group must consist of at least two addresses###
