@@ -1,6 +1,5 @@
 ###disable scientific notation###
 options(scipen = 999)
-###extend file download timeout###
 options(timeout=240)
 
 ###load packages###
@@ -21,7 +20,13 @@ d_f <- function(this.URL,main.path,USCB_TIGER.path) {
 	file.remove(file.path(USCB_TIGER.path,file))
 }
 
-download_USCB_TIGER_files <- function(FIPS_dt,USCB_TIGER.path){
+download_USCB_TIGER_files <- function(FIPS_dt,USCB_TIGER.path,geo.year="2010"){
+
+	if(geo.year=="2010") {
+		f_year <- "2019"
+	} else {
+		f_year <- "2022"
+	}
 	
 	FIPS.dt <- copy(as.data.table(FIPS_dt))
 
@@ -31,7 +36,7 @@ download_USCB_TIGER_files <- function(FIPS_dt,USCB_TIGER.path){
 	
 	FIPS.dt <- unique(FIPS.dt[,c("state","county"),with=FALSE])
 
-	base.URL <- "https://www2.census.gov/geo/tiger/TIGER2022"
+	base.URL <- paste0("https://www2.census.gov/geo/tiger/TIGER",f_year)
 
 	old.wd <- getwd()
 
@@ -52,14 +57,14 @@ download_USCB_TIGER_files <- function(FIPS_dt,USCB_TIGER.path){
 		if (this.f_type=="county") {
 			for (j in 1:nrow(FIPS.dt)){
 			
-				this.URL <- file.path(main.URL,paste0("tl_2022_",FIPS.dt[j]$state,FIPS.dt[j]$county,"_",tolower(this.f_name),".zip"))
+				this.URL <- file.path(main.URL,paste0("tl_",f_year,"_",FIPS.dt[j]$state,FIPS.dt[j]$county,"_",tolower(this.f_name),".zip"))
 
 				d_f(this.URL,main.path,USCB_TIGER.path)
 			}
 		} else{
 			for (j in unique(FIPS.dt$state)){
 				
-				this.URL <- file.path(main.URL,paste0("tl_2022_",j,"_",tolower(this.f_name),".zip"))
+				this.URL <- file.path(main.URL,paste0("tl_",f_year,"_",j,"_",tolower(this.f_name),".zip"))
 
 				d_f(this.URL,main.path,USCB_TIGER.path)
 			}
@@ -72,3 +77,4 @@ download_USCB_TIGER_files <- function(FIPS_dt,USCB_TIGER.path){
 	}
 	
 }	
+	
