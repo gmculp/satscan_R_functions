@@ -553,14 +553,7 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	
 	setwd(old.wd)
 	
-	
-	if(as.character(geo.year)=="2010") {
-		setnames(all_pairs.dt,c("USCB_tract_this.1","USCB_tract_this.2"),c("USCB_tract_2010.1","USCB_tract_2010.2"))
-	} else {
-		setnames(all_pairs.dt,c("USCB_tract_this.1","USCB_tract_this.2"),c("USCB_tract_2020.1","USCB_tract_2020.2"))
-	}
-	
-	
+	###save object as TXT file###
 	if(!missing(output.path) & !missing(output.file_name) & !is.null(output.path) & !is.null(output.file_name)){
 		if(dir.exists(output.path)){
 			fwrite(all_pairs.dt[,c('USCB_tract_2010.1','USCB_tract_2010.2'), with=FALSE], file = file.path(output.path,output.file_name), sep = " ", col.names = FALSE, row.names = FALSE)
@@ -570,6 +563,13 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 		}
 	} else {
 		warning("\nOutput file path and/or file name missing. File will not be saved.\n")
+	}
+	
+	
+	if(as.character(geo.year)=="2010") {
+		setnames(all_pairs.dt,c("USCB_tract_this.1","USCB_tract_this.2"),c("USCB_tract_2010.1","USCB_tract_2010.2"))
+	} else {
+		setnames(all_pairs.dt,c("USCB_tract_this.1","USCB_tract_this.2"),c("USCB_tract_2020.1","USCB_tract_2020.2"))
 	}
 	
 	return(all_pairs.dt)
