@@ -54,16 +54,16 @@ download_USCB_TIGER_files(FIPS.dt,USCB_TIGER.path)
 download_USCB_TIGER_files(FIPS.dt,USCB_TIGER.path,"2020")
 
 ###generate relationship file for 2010 census tracts###
-tract_pairs.dt <- generate_USCB_tract_network_file(FIPS.dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, geo.year="2010", output.file_name='CT2010_relationship.txt')
+tract_pairs.dt_2010 <- generate_USCB_tract_network_file(FIPS.dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, geo.year="2010", output.file_name='CT2010_relationship.txt')
 
 ###generate relationship file for 2020 census tracts###
-tract_pairs.dt <- generate_USCB_tract_network_file(FIPS.dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, geo.year="2020", output.file_name='CT2020_relationship.txt')
+tract_pairs.dt_2020 <- generate_USCB_tract_network_file(FIPS.dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, geo.year="2020", output.file_name='CT2020_relationship.txt')
+
+###generate relationship file for 2010 ZIP code tabulation areas (ZCTA)###
+zcta_pairs.dt_2010 <- generate_USCB_ZCTA_network_file(FIPS.dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, geo.year="2010", ADDR_dt=ADDR.dt, output.path=output.path, output.file_name='ZCTA2010_relationship.txt')
 
 ###generate relationship file for 2020 ZIP code tabulation areas (ZCTA)###
-zcta_pairs.dt <- generate_USCB_ZCTA_network_file(FIPS.dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, geo.year="2010", ADDR_dt=ADDR.dt, output.path=output.path, output.file_name='ZCTA2010_relationship.txt')
-
-###generate relationship file for 2020 ZIP code tabulation areas (ZCTA)###
-zcta_pairs.dt <- generate_USCB_ZCTA_network_file(FIPS.dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, geo.year="2020", ADDR_dt=ADDR.dt, output.path=output.path, output.file_name='ZCTA2020_relationship.txt')
+zcta_pairs.dt_2020 <- generate_USCB_ZCTA_network_file(FIPS.dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, geo.year="2020", ADDR_dt=ADDR.dt, output.path=output.path, output.file_name='ZCTA2020_relationship.txt')
 
 
 
