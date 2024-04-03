@@ -9,18 +9,18 @@ library(foreign)
 library(sf)
 library(censusapi)
 library(igraph)
-library(censusxy)
-
+#library(censusxy)
+library(jsonlite)
 data.table::setDTthreads(1)
 
-f_year <- "2020"
 
-generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, geo.year="2010", ADDR_dt=NULL){
+generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, geo.year="2010", ADDR_dt=NULL, output.path=NULL, output.file_name=NULL){
 
 	if(as.character(geo.year)=="2010") {
 		f_year <- "2019"
 	} else {
 		f_year <- "2022"
+		geo.year <- '2020'
 	}
 	
 	FIPS.dt <- copy(as.data.table(FIPS_dt))
@@ -352,7 +352,8 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	###generate graph object###
 	net <- graph_from_data_frame(d=e.dt, directed=F) 
 	 
-	dg <- decompose.graph(net)
+	#dg <- decompose.graph(net)
+	dg <- decompose(net)
 
 	dg.dt <- rbindlist(lapply(1:length(dg),function(i){
 		return(unique(data.table(TNID=as.numeric(trimws(V(dg[[i]])$name)), b_grp=i)))
@@ -414,16 +415,44 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	if(all(c("ADDR","CITY","STATE","ZIP","group_ID") %in% names(ADDR_dt)) & (nrow(ADDR_dt) > 1)) {
 		
 		addr.dt <- unique(copy(ADDR_dt)[,c("ADDR","CITY","STATE","ZIP","group_ID"), with=FALSE])
+	
+		###work around to replace removed censusxy package### 
+		gc_URL <- 'https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress?'
+	
+		gc.dt <- rbindlist(lapply(1:nrow(addr.dt), function(n) {
+		
+			temp.dt <- addr.dt[n]
+		
+			this.URL <- paste0(gc_URL,'address=',addr.dt[n]$ADDR,',',addr.dt[n]$CITY,',',addr.dt[n]$STATE,',',addr.dt[n]$ZIP,'&benchmark=2020&vintage=',geo.year,'&format=json')
 
-		gc.dt <- cxy_geocode(addr.dt, street = 'ADDR', city = 'CITY', state = 'STATE', zip = 'ZIP', return = 'geographies', class = 'dataframe', output = 'simple', vintage = 'Current_Current', benchmark = "Public_AR_Current")
+			req <- jsonlite::fromJSON(URLencode(this.URL))$result$addressMatches
+			
+			if(length(req) > 0){
+				if('geographies' %in% names(req)) {
+					if("Census Tracts" %in% names(req$geographies)) {
+						if(length(req$geographies[["Census Tracts"]]) > 0) {
+							if(nrow(req$geographies[["Census Tracts"]][[1]])>0){
+								ct <- req$geographies[["Census Tracts"]][[1]]$GEOID
+							}
+						}
+					}
+				}
+			} else {
+				ct <- NA
+			}
+			
+			temp.dt[,USCB_tract_this := ct]
+			
+			return(temp.dt)
 		
-		gc.dt <- gc.dt[!(is.na(cxy_state_id)) & !(is.na(cxy_county_id)) & !(is.na(cxy_tract_id))]
+		}),use.names=TRUE)
+	
 		
+		gc.dt <- gc.dt[!is.na(USCB_tract_this)]
+	
 		if(nrow(addr.dt) > nrow(gc.dt)){
 			warning("Some addresses in your address table failed to geocode. Please check your address table.\n")
 		}
-
-		gc.dt[,USCB_tract_this := paste0(sprintf("%02d", cxy_state_id),sprintf("%03d", cxy_county_id),sprintf("%06d", cxy_tract_id))]
 		
 		gc.dt[,tot := .N, by=group_ID]
 		
@@ -531,6 +560,17 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 		setnames(all_pairs.dt,c("USCB_tract_this.1","USCB_tract_this.2"),c("USCB_tract_2020.1","USCB_tract_2020.2"))
 	}
 	
+	
+	if(!missing(output.path) & !missing(output.file_name) & !is.null(output.path) & !is.null(output.file_name)){
+		if(dir.exists(output.path)){
+			fwrite(all_pairs.dt[,c('USCB_tract_2010.1','USCB_tract_2010.2'), with=FALSE], file = file.path(output.path,output.file_name), sep = " ", col.names = FALSE, row.names = FALSE)
+			cat(paste('\n Tract network file for',geo.year,'saved here:',file.path(output.path,output.file_name)))
+		} else {
+			warning("\nOutput file path does not exist. File will not be saved.\n")
+		}
+	} else {
+		warning("\nOutput file path and/or file name missing. File will not be saved.\n")
+	}
+	
 	return(all_pairs.dt)
-
 }
