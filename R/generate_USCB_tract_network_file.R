@@ -556,7 +556,7 @@ generate_USCB_tract_network_file <- function(FIPS_dt, USCB_TIGER.path, omit.park
 	###save object as TXT file###
 	if(!missing(output.path) & !missing(output.file_name) & !is.null(output.path) & !is.null(output.file_name)){
 		if(dir.exists(output.path)){
-			fwrite(all_pairs.dt[,c('USCB_tract_2010.1','USCB_tract_2010.2'), with=FALSE], file = file.path(output.path,output.file_name), sep = " ", col.names = FALSE, row.names = FALSE)
+			fwrite(all_pairs.dt[,c("USCB_tract_this.1","USCB_tract_this.2"), with=FALSE], file = file.path(output.path,output.file_name), sep = " ", col.names = FALSE, row.names = FALSE)
 			cat(paste('\n Tract network file for',geo.year,'saved here:',file.path(output.path,output.file_name)))
 		} else {
 			warning("\nOutput file path does not exist. File will not be saved.\n")
