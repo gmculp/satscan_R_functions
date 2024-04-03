@@ -5,9 +5,9 @@ At this point in time, the following functions are available:
 
 * ```download_USCB_TIGER_files.R```: Function to download necessary files from USCB TIGER website. *Note that if you are using this code from within an organization's firewall, the USCB TIGER website (https://www2.census.gov/geo/tiger) may need to be whitelisted.*
 
-* ```generate_USCB_tract_network_file.R```: Function to generate census tract relationship file in CSV format. Includes optional logical arguments to enable bridge connectivity, omit connectivity with parks and other open spaces and omit connectivity with unpopulated tracts. In addition, there is the option to input a data frame of to and from addresses. ***Now with option to select between 2010 and 2020 tracts!***
+* ```generate_USCB_tract_network_file.R```: Function to generate census tract relationship file in CSV format. Includes optional logical arguments to enable bridge connectivity, omit connectivity with parks and other open spaces and omit connectivity with unpopulated tracts. In addition, there is the option to input a data frame of to and from addresses. ***Now with option to select between 2010 and 2020 tracts plus save in SaTScan friendly format!***
 
-* ```generate_USCB_ZCTA_network_file.R```: Function to generate ZIP code tabulation area (ZCTA) relationship file in CSV format. Includes optional logical arguments to enable bridge connectivity, omit connectivity with parks and other open spaces and omit connectivity with unpopulated ZCTA. In addition, there is the option to input a data frame of to and from addresses.
+* ```generate_USCB_ZCTA_network_file.R```: Function to generate ZIP code tabulation area (ZCTA) relationship file in CSV format. Includes optional logical arguments to enable bridge connectivity, omit connectivity with parks and other open spaces and omit connectivity with unpopulated ZCTA. In addition, there is the option to input a data frame of to and from addresses. ***Now with option to select between 2010 and 2020 ZCTA plus save in SaTScan friendly format!***
 
 
 Required packages that must be installed to run this code:
@@ -16,19 +16,15 @@ Required packages that must be installed to run this code:
 
 * ```foreign```: for reading in dbf files
 
-* ```sf```: for reading in shapefiles
+* ```sf```: for reading in shapefiles and performing spatial processes
 
 * ```censusapi```: for reading in population data
 
-* ```censusxy```: for geocoding addresses to census block level
+* ```jsonlite```: for processing JSON from the USCB geocoding API
 
 * ```igraph```: for collapsing directional multipart polylines in edges files into single part polylines
 
-* ```rgeos```: for generating contained centroids
 
-* ```sp```: required by ```rgeos```
-
-          
           
           
 Here is a code sample for generating a network file for tracts and ZIP code tabulation areas within NYC:
@@ -38,6 +34,9 @@ source("R/generate_USCB_tract_network_file.R")
 
 ###specify place to store USCB TIGER files###
 USCB_TIGER.path <- "C:/SaTScan_resources/census_files"
+
+###specify place to store network files###
+output.path <- "C:/SaTScan_resources/network_files"
 
 ###specify data table containing state and county FIPS codes###
 FIPS.dt <- data.table(state=rep("36",5),county=c("061","005","047","081","085"))
@@ -54,10 +53,19 @@ download_USCB_TIGER_files(FIPS.dt,USCB_TIGER.path)
 ###for 2020###
 download_USCB_TIGER_files(FIPS.dt,USCB_TIGER.path,"2020")
 
-###generate relationship file for 2020 census tracts###
-tract_pairs.dt <- generate_USCB_tract_network_file(FIPS.dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, geo.year="2020", ADDR_dt)
+###generate relationship file for 2010 census tracts###
+tract_pairs.dt <- generate_USCB_tract_network_file(FIPS.dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, geo.year="2010", output.file_name='CT2010_relationship.txt')
 
-###generate relationship file for ZIP code tabulation areas (ZCTA)###
-ZCTA_pairs.dt <- generate_USCB_tract_network_file(FIPS.dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, ADDR_dt)
+###generate relationship file for 2020 census tracts###
+tract_pairs.dt <- generate_USCB_tract_network_file(FIPS.dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, geo.year="2020", output.file_name='CT2020_relationship.txt')
+
+###generate relationship file for 2020 ZIP code tabulation areas (ZCTA)###
+zcta_pairs.dt <- generate_USCB_ZCTA_network_file(FIPS.dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, geo.year="2010", ADDR_dt=ADDR.dt, output.path=output.path, output.file_name='ZCTA2010_relationship.txt')
+
+###generate relationship file for 2020 ZIP code tabulation areas (ZCTA)###
+zcta_pairs.dt <- generate_USCB_ZCTA_network_file(FIPS.dt, USCB_TIGER.path, omit.park_openspace=TRUE, omit.unpopulated=TRUE, use.bridges=TRUE, geo.year="2020", ADDR_dt=ADDR.dt, output.path=output.path, output.file_name='ZCTA2020_relationship.txt')
+
+
+
 
 
